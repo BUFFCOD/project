@@ -34,7 +34,17 @@ export async function POST(request: Request) {
     if (item) {
       const token = decrypt(item.encryptedAccessToken);
       const resp = await plaidClient.accountsGet({ access_token: token });
-      accounts.push(...resp.data.accounts);
+
+      const safeAccounts = resp.data.accounts.map((ac) => ({
+        name: ac.name,
+        balances: {
+          // convert null → undefined
+          available: ac.balances.available ?? undefined,
+          current: ac.balances.current ?? undefined,
+        },
+      }));
+
+      accounts.push(...safeAccounts);
     }
 
     // 2) Build context string for LLM
