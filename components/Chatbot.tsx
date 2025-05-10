@@ -6,6 +6,7 @@ import React, {
   useEffect,
   FormEvent,
   useCallback,
+  CSSProperties,
 } from "react";
 import { useAuth } from "@clerk/nextjs";
 
@@ -141,7 +142,18 @@ export default function Chatbot({
     [message, isLoading, chatHistory, getToken, accounts, transactions]
   );
 
-  const styles = {
+  const styles: {
+    container: CSSProperties;
+    chatArea: CSSProperties;
+    messageBubble: (role: "user" | "model") => CSSProperties;
+    messageContent: (role: "user" | "model") => CSSProperties;
+    form: CSSProperties;
+    input: CSSProperties;
+    button: CSSProperties;
+    loadingText: CSSProperties;
+    errorText: CSSProperties;
+    plaidPrompt: CSSProperties;
+  } = {
     container: {
       border: "1px solid #ccc",
       borderRadius: "8px",
@@ -159,12 +171,11 @@ export default function Chatbot({
       marginBottom: "15px",
       paddingRight: "10px",
     },
-    messageBubble: (role: "user" | "model") => ({
+    messageBubble: (role) => ({
       marginBottom: "10px",
       textAlign: role === "user" ? "right" : "left",
     }),
-    
-    messageContent: (role: "user" | "model") => ({
+    messageContent: (role) => ({
       display: "inline-block",
       padding: "8px 12px",
       borderRadius: "15px",

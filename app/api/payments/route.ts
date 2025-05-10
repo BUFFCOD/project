@@ -1,3 +1,4 @@
+export{};
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
@@ -116,79 +117,89 @@ export async function POST(req: Request) {
         });
 
         return NextResponse.json(result);
-    } catch (error) {
-        console.error('[PAYMENTS_POST] Error details:', error);
-        return new NextResponse(JSON.stringify({ 
-            error: error.message,
-            details: error.stack
-        }), { 
-            status: 500,
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-    }
+    } catch (err: unknown) {
+        console.error('[PAYMENTS_POST] Error details:', err);
+      
+        // narrow unknown → Error
+        const error = err instanceof Error
+          ? err
+          : new Error(typeof err === 'string' ? err : 'Unknown error');
+      
+        return new NextResponse(
+          JSON.stringify({
+            error:   error.message,
+            details: error.stack,
+          }),
+          {
+            status:  500,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      }
+      
+
+// export async function GET(req: Request) {
+//     try {
+//         const session = await auth();
+//         if (!session || !session.userId) {
+//             return new NextResponse(JSON.stringify({ 
+//                 error: 'Unauthorized - Please sign in to continue',
+//                 details: 'No valid user session found'
+//             }), { 
+//                 status: 401,
+//                 headers: {
+//                     'Content-Type': 'application/json'
+//                 }
+//             });
+//         }
+
+//         const { searchParams } = new URL(req.url);
+//         const debtId = searchParams.get('debtId');
+
+//         if (!debtId) {
+//             return new NextResponse(JSON.stringify({ 
+//                 error: 'Missing required parameter',
+//                 details: 'debtId is required'
+//             }), { 
+//                 status: 400,
+//                 headers: {
+//                     'Content-Type': 'application/json'
+//                 }
+//             });
+//         }
+
+//         const payments = await prisma.debt_payment.findMany({
+//             where: {
+//                 userId: String(session.userId),
+//                 debtId: String(debtId)
+//             },
+//             orderBy: {
+//                 date: 'desc'
+//             }
+//         });
+
+//         // Format the payments to ensure consistent data types
+//         const formattedPayments = payments.map(payment => ({
+//             ...payment,
+//             date: new Date(payment.date).toISOString(),
+//             amount: Number(payment.amount),
+//             notes: payment.notes || null
+//         }));
+
+//         return NextResponse.json(formattedPayments);
+//     } catch (error: unknown) {
+//         console.error('[PAYMENTS_GET] Error details:', error);
+//         const err = error instanceof Error
+//         ? error
+//         : new Error(typeof error === 'string' ? error : 'Unknown error');
+//         return new NextResponse(JSON.stringify({ 
+//             error: err.message,
+//             details: err.stack
+//         }), { 
+//             status: 500,
+//             headers: {
+//                 'Content-Type': 'application/json'
+//             }
+//         });
+//     };
 }
-
-export async function GET(req: Request) {
-    try {
-        const session = await auth();
-        if (!session || !session.userId) {
-            return new NextResponse(JSON.stringify({ 
-                error: 'Unauthorized - Please sign in to continue',
-                details: 'No valid user session found'
-            }), { 
-                status: 401,
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-        }
-
-        const { searchParams } = new URL(req.url);
-        const debtId = searchParams.get('debtId');
-
-        if (!debtId) {
-            return new NextResponse(JSON.stringify({ 
-                error: 'Missing required parameter',
-                details: 'debtId is required'
-            }), { 
-                status: 400,
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-        }
-
-        const payments = await prisma.debt_payment.findMany({
-            where: {
-                userId: String(session.userId),
-                debtId: String(debtId)
-            },
-            orderBy: {
-                date: 'desc'
-            }
-        });
-
-        // Format the payments to ensure consistent data types
-        const formattedPayments = payments.map(payment => ({
-            ...payment,
-            date: new Date(payment.date).toISOString(),
-            amount: Number(payment.amount),
-            notes: payment.notes || null
-        }));
-
-        return NextResponse.json(formattedPayments);
-    } catch (error) {
-        console.error('[PAYMENTS_GET] Error details:', error);
-        return new NextResponse(JSON.stringify({ 
-            error: error.message,
-            details: error.stack
-        }), { 
-            status: 500,
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-    }
-} 

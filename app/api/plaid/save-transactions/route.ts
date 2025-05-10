@@ -4,6 +4,7 @@ import { plaidClient } from "@/lib/plaid";
 import prisma from "@/lib/prisma";
 import { decrypt } from "@/lib/encryption";
 import dayjs from "dayjs";
+import { randomUUID } from "crypto";
 
 export async function POST() {
   const { userId } = await auth();
@@ -33,10 +34,11 @@ export async function POST() {
   const transactions = response.data.transactions;
 
   for (const tx of transactions) {
-    await prisma.plaidTransaction.upsert({
+    await prisma.plaidtransaction.upsert({
       where: { transactionId: tx.transaction_id },
       update: {},
       create: {
+        id: randomUUID(),
         userId,
         transactionId: tx.transaction_id,
         account_id: tx.account_id,
@@ -44,7 +46,6 @@ export async function POST() {
         amount: tx.amount,
         date: new Date(tx.date),
         category: tx.category?.[0] || null,
-        merchant: tx.merchant_name || null,
       },
     });
   }

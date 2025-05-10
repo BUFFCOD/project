@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useDebt } from "../contexts/DebtContext";
+import { debt as PrismaDebt} from "@prisma/client";
 
 interface Debt {
     id: string;
-    userId: string;
+    userId?: string;
     name: string;
     balance: number;
     currentBalance: number;
@@ -15,7 +16,6 @@ interface Debt {
     extraPayment?: number;
     payments?: Payment[];
 }
-
 interface Payment {
     id: string;
     debtId: string;
@@ -26,12 +26,12 @@ interface Payment {
 }
 
 interface PaymentPlan {
-    debtId: string;
-    debtName: string;
-    balance: number;
-    monthlyPayment: number;
-    monthsToPayoff: number;
-    totalInterest: number;
+  debtId: string;
+  debtName: string;
+  balance: number;
+  monthlyPayment: number;
+  monthsToPayoff: number;
+  totalInterest: number;
 }
 
 type PaymentStrategy = "avalanche" | "snowball" | "highest-payment" | "custom";
@@ -67,53 +67,54 @@ export default function MonthlyPaymentPlanner() {
 
         setIsSubmitting(true);
         try {
-            const paymentData = {
-                debtId: selectedDebtId,
-                amount: Number(paymentAmount),
-                date: paymentDate,
-                notes: notes || null,
-            };
-            
-            console.log('Logging payment with data:', paymentData);
-            
-            const response = await fetch('/api/payments', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(paymentData),
-            });
+          const paymentData = {
+            debtId: selectedDebtId,
+            amount: Number(paymentAmount),
+            date: paymentDate,
+            notes: notes || null,
+          };
 
-            if (!response.ok) {
-                const contentType = response.headers.get('content-type');
-                if (contentType && contentType.includes('application/json')) {
-                    const data = await response.json();
-                    throw new Error(data.error || 'Failed to log payment');
-                } else {
-                    throw new Error('Failed to log payment');
-                }
+          console.log("Logging payment with data:", paymentData);
+
+          const response = await fetch("/api/payments", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(paymentData),
+          });
+
+          if (!response.ok) {
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+              const data = await response.json();
+              throw new Error(data.error || "Failed to log payment");
+            } else {
+              throw new Error("Failed to log payment");
             }
+          }
 
-            const result = await response.json();
-            console.log('Payment logged successfully:', result);
-            
-            // Reset form
-            setPaymentAmount('');
-            setPaymentDate(new Date().toISOString().split('T')[0]);
-            setNotes('');
-            
-            // Update the payments list with the updated debt's payments
-            if (result.updatedDebt?.payments) {
-                setSelectedDebtPayments(result.updatedDebt.payments);
-            }
+          const result = await response.json();
+          console.log("Payment logged successfully:", result);
 
-            // Update the debts list with the updated debt
-            setDebts((prevDebts: Debt[]) => {
-                const updatedDebts = prevDebts.map((debt: Debt) => 
-                    debt.id === result.updatedDebt.id ? result.updatedDebt : debt
-                );
-                return updatedDebts;
-            });
+          // Reset form
+          setPaymentAmount("");
+          setPaymentDate(new Date().toISOString().split("T")[0]);
+          setNotes("");
+
+          // Update the payments list with the updated debt's payments
+          if (result.updatedDebt?.payments) {
+            setSelectedDebtPayments(result.updatedDebt.payments);
+          }
+
+          // Update the debts list with the updated debt
+          // 1) Compute
+          const newDebts = debts.map((d) =>
+            d.id === result.updatedDebt.id ? result.updatedDebt : d
+          );
+
+          // 2) Update
+          setDebts(newDebts);
         } catch (error) {
             console.error('Error logging payment:', error);
             const errorMessage = error instanceof Error ? error.message : 'Failed to log payment. Please try again.';
