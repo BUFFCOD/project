@@ -1,4 +1,5 @@
 export const runtime = "nodejs";
+
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -38,7 +39,6 @@ export async function POST(request: Request) {
       const safeAccounts = resp.data.accounts.map((ac) => ({
         name: ac.name,
         balances: {
-          // convert null → undefined
           available: ac.balances.available ?? undefined,
           current: ac.balances.current ?? undefined,
         },
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     }
     if (transactions.length) {
       contextLines.push("Recent Transactions:");
-      transactions.forEach((t) =>
+      transactions.forEach((t: { name: string; amount: number; date: Date }) =>
         contextLines.push(
           `- ${t.name}: $${t.amount} on ${t.date.toISOString().split("T")[0]}`
         )
@@ -82,7 +82,6 @@ export async function POST(request: Request) {
       "You are a financial advisor. Use the provided Accounts and Recent Transactions to answer the user's question. Provide clear, actionable advice and include appropriate disclaimers.";
 
     const genAI = new GoogleGenerativeAI(API_KEY);
-    // Attach system instruction so it's applied automatically
     const model = genAI.getGenerativeModel({
       model: MODEL_NAME,
       systemInstruction: {
@@ -91,12 +90,10 @@ export async function POST(request: Request) {
       },
     });
 
-    // Generate content with a single user prompt
     const response = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
     });
 
-    // Await the final aggregated response
     const result = await response.response;
     const text = result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 

@@ -3,20 +3,9 @@
 
 import { useState, useEffect } from "react";
 import { useDebt } from "../contexts/DebtContext";
-import { debt as PrismaDebt } from "@prisma/client";
+import type { Debt } from "../contexts/DebtContext";
 
-interface Debt {
-  id: string;
-  userId?: string;
-  name: string;
-  balance: number;
-  currentBalance: number;
-  interestRate: number;
-  minimumPayment: number;
-  dueDate: string;
-  extraPayment?: number;
-  payments?: Payment[];
-}
+
 
 
 interface Payment {

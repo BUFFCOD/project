@@ -1,205 +1,156 @@
-export{};
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
 
+type Payment = {
+  id: string;
+  userId: string;
+  debtId: string;
+  amount: number;
+  date: Date;
+  notes: string | null;
+};
+
 export async function POST(req: Request) {
-    try {
-        const session = await auth();
-        if (!session || !session.userId) {
-            return new NextResponse(JSON.stringify({ 
-                error: 'Unauthorized - Please sign in to continue',
-                details: 'No valid user session found'
-            }), { 
-                status: 401,
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
+  try {
+    const session = await auth();
+    if (!session || !session.userId) {
+      return new NextResponse(
+        JSON.stringify({
+          error: 'Unauthorized - Please sign in to continue',
+          details: 'No valid user session found',
+        }),
+        {
+          status: 401,
+          headers: {
+            'Content-Type': 'application/json',
+          },
         }
+      );
+    }
 
-        const body = await req.json();
-        const { debtId, amount, date, notes } = body;
+    const body = await req.json();
+    const { debtId, amount, date, notes } = body;
 
-        if (!debtId || !amount) {
-            return new NextResponse(JSON.stringify({ 
-                error: 'Missing required fields',
-                details: 'Both debtId and amount are required'
-            }), { 
-                status: 400,
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
+    if (!debtId || !amount) {
+      return new NextResponse(
+        JSON.stringify({
+          error: 'Missing required fields',
+          details: 'Both debtId and amount are required',
+        }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+          },
         }
+      );
+    }
 
-        // Start a transaction to ensure data consistency
-        const result = await prisma.$transaction(async (tx) => {
-            // Verify and get the current debt
-            const debt = await tx.debt.findFirst({
-                where: { 
-                    id: String(debtId),
-                    userId: String(session.userId)
-                }
-            });
+    // Start a transaction to ensure data consistency
+    const result = await prisma.$transaction(async (tx) => {
 
-            if (!debt) {
-                throw new Error('Debt not found or unauthorized');
-            }
 
-            // Check if a payment with the same amount and date already exists
-            const existingPayment = await tx.debt_payment.findFirst({
-                where: {
-                    debtId: String(debtId),
-                    amount: Number(amount),
-                    date: date ? new Date(date) : new Date(),
-                    userId: String(session.userId)
-                }
-            });
+      // Verify and get the current debt
+      const debt = await tx.debt.findFirst({
+        where: {
+          id: String(debtId),
+          userId: String(session.userId),
+        },
+      });
 
-            if (existingPayment) {
-                throw new Error('A payment with the same amount and date already exists');
-            }
-
-            // Create the payment
-            const payment = await tx.debt_payment.create({
-                data: {
-                    debtId: String(debtId),
-                    userId: String(session.userId),
-                    amount: Number(amount),
-                    date: date ? new Date(date) : new Date(),
-                    notes: notes || null
-                }
-            });
-
-            // Update the debt balance
-            const updatedDebt = await tx.debt.update({
-                where: { 
-                    id: String(debtId),
-                    userId: String(session.userId)
-                },
-                data: {
-                    currentBalance: {
-                        decrement: Number(amount)
-                    }
-                }
-            });
-
-            // Get all payments for this debt
-            const allPayments = await tx.debt_payment.findMany({
-                where: {
-                    debtId: String(debtId),
-                    userId: String(session.userId)
-                },
-                orderBy: {
-                    date: 'desc'
-                }
-            });
-
-            // Format the response
-            return {
-                updatedDebt: {
-                    ...updatedDebt,
-                    currentBalance: Number(updatedDebt.currentBalance),
-                    balance: Number(updatedDebt.balance),
-                    interestRate: Number(updatedDebt.interestRate),
-                    minimumPayment: Number(updatedDebt.minimumPayment),
-                    extraPayment: updatedDebt.extraPayment ? Number(updatedDebt.extraPayment) : null,
-                    dueDate: updatedDebt.dueDate,
-                    payments: allPayments.map(payment => ({
-                        ...payment,
-                        amount: Number(payment.amount),
-                        date: new Date(payment.date).toISOString(),
-                        notes: payment.notes || null
-                    }))
-                }
-            };
-        });
-
-        return NextResponse.json(result);
-    } catch (err: unknown) {
-        console.error('[PAYMENTS_POST] Error details:', err);
-      
-        // narrow unknown → Error
-        const error = err instanceof Error
-          ? err
-          : new Error(typeof err === 'string' ? err : 'Unknown error');
-      
-        return new NextResponse(
-          JSON.stringify({
-            error:   error.message,
-            details: error.stack,
-          }),
-          {
-            status:  500,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
+      if (!debt) {
+        throw new Error('Debt not found or unauthorized');
       }
-      
 
-// export async function GET(req: Request) {
-//     try {
-//         const session = await auth();
-//         if (!session || !session.userId) {
-//             return new NextResponse(JSON.stringify({ 
-//                 error: 'Unauthorized - Please sign in to continue',
-//                 details: 'No valid user session found'
-//             }), { 
-//                 status: 401,
-//                 headers: {
-//                     'Content-Type': 'application/json'
-//                 }
-//             });
-//         }
+      // Check if a payment with the same amount and date already exists
+      const existingPayment = await tx.debt_payment.findFirst({
+        where: {
+          debtId: String(debtId),
+          amount: Number(amount),
+          date: date ? new Date(date) : new Date(),
+          userId: String(session.userId),
+        },
+      });
 
-//         const { searchParams } = new URL(req.url);
-//         const debtId = searchParams.get('debtId');
+      if (existingPayment) {
+        throw new Error('A payment with the same amount and date already exists');
+      }
 
-//         if (!debtId) {
-//             return new NextResponse(JSON.stringify({ 
-//                 error: 'Missing required parameter',
-//                 details: 'debtId is required'
-//             }), { 
-//                 status: 400,
-//                 headers: {
-//                     'Content-Type': 'application/json'
-//                 }
-//             });
-//         }
+      // Create the payment
+      const payment = await tx.debt_payment.create({
+        data: {
+          debtId: String(debtId),
+          userId: String(session.userId),
+          amount: Number(amount),
+          date: date ? new Date(date) : new Date(),
+          notes: notes || null,
+        },
+      });
 
-//         const payments = await prisma.debt_payment.findMany({
-//             where: {
-//                 userId: String(session.userId),
-//                 debtId: String(debtId)
-//             },
-//             orderBy: {
-//                 date: 'desc'
-//             }
-//         });
+      // Update the debt balance
+      const updatedDebt = await tx.debt.update({
+        where: {
+          id: String(debtId),
+          userId: String(session.userId),
+        },
+        data: {
+          currentBalance: {
+            decrement: Number(amount),
+          },
+        },
+      });
 
-//         // Format the payments to ensure consistent data types
-//         const formattedPayments = payments.map(payment => ({
-//             ...payment,
-//             date: new Date(payment.date).toISOString(),
-//             amount: Number(payment.amount),
-//             notes: payment.notes || null
-//         }));
+      // Get all payments for this debt
+      const allPayments = await tx.debt_payment.findMany({
+        where: {
+          debtId: String(debtId),
+          userId: String(session.userId),
+        },
+        orderBy: {
+          date: 'desc',
+        },
+      });
 
-//         return NextResponse.json(formattedPayments);
-//     } catch (error: unknown) {
-//         console.error('[PAYMENTS_GET] Error details:', error);
-//         const err = error instanceof Error
-//         ? error
-//         : new Error(typeof error === 'string' ? error : 'Unknown error');
-//         return new NextResponse(JSON.stringify({ 
-//             error: err.message,
-//             details: err.stack
-//         }), { 
-//             status: 500,
-//             headers: {
-//                 'Content-Type': 'application/json'
-//             }
-//         });
-//     };
+      // Format the response
+      return {
+        updatedDebt: {
+          ...updatedDebt,
+          currentBalance: Number(updatedDebt.currentBalance),
+          balance: Number(updatedDebt.balance),
+          interestRate: Number(updatedDebt.interestRate),
+          minimumPayment: Number(updatedDebt.minimumPayment),
+          extraPayment: updatedDebt.extraPayment ? Number(updatedDebt.extraPayment) : null,
+          dueDate: updatedDebt.dueDate,
+          payments: allPayments.map((payment) => ({
+            id: payment.id,
+            debtId: payment.debtId,
+            userId: payment.userId,
+            amount: payment.amount.toNumber(), // ✅ convert Decimal to number
+            date: payment.date.toISOString(),
+            notes: payment.notes,
+          }))
+          ,
+        },
+      };
+    });
+
+    return NextResponse.json(result);
+  } catch (err: unknown) {
+    console.error('[PAYMENTS_POST] Error details:', err);
+
+    const error =
+      err instanceof Error ? err : new Error(typeof err === 'string' ? err : 'Unknown error');
+
+    return new NextResponse(
+      JSON.stringify({
+        error: error.message,
+        details: error.stack,
+      }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
 }

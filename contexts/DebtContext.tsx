@@ -8,10 +8,9 @@ import {
   ReactNode,
 } from "react";
 import { useUser } from "@clerk/nextjs";
-import type {
-  debt as PrismaDebt,
-  payments as PrismaPayment,
-} from "@prisma/client";
+import type { payments as PrismaPayment } from "@prisma/client";
+
+import type { debt as PrismaDebt } from "@prisma/client"; 
 
 // Local types
 export interface Payment {
@@ -79,13 +78,14 @@ const normalizeDebt = (
   extraPayment: raw.extraPayment?.toNumber() ?? 0,
   dueDate: raw.dueDate.toISOString().split("T")[0],
   payments: raw.payments?.map((p) => ({
-    id: p.PAYMENT_ID.toString(),
-    debtId: p.CARD_ID?.toString() ?? "",
-    userId: p.USER_ID?.toString(),
-    amount: p.PAID.toNumber(),
-    date: p.PAYMENT_DATE?.toISOString().split("T")[0] ?? "",
-    notes:  undefined,
-  })),
+    id: p.id.toString(),
+    debtId: p.debtId.toString(),
+    userId: p.userId?.toString(),
+    amount: p.amount.toNumber(),
+    date: p.date?.toISOString().split("T")[0] ?? "",
+    notes: p.notes ?? "",
+  }))
+  ,
 });
 
 export function DebtProvider({ children }: { children: ReactNode }) {

@@ -19,7 +19,7 @@ model credit_cards {
   STATUS        credit_cards_STATUS?   @default(Active)
   users         users                  @relation(fields: [USER_ID], references: [USER_ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_CREDIT_CARDS")
   payment_plan  payment_plan[]
-  payments      payments[]
+  payments      payments[]             @relation("CreditCardToPayments") // ✅ added relation name
   settlements   settlements[]
   transactions  transactions[]
 
@@ -42,14 +42,22 @@ model payment_plan {
 }
 
 model payments {
-  id             String   @id @default(uuid())
-  debtId         String
-  userId         String?
-  amount         Decimal
-  date           DateTime
-  notes          String?
-  paymentMethod  String
-  status         String?
+  id     String @id @default(uuid())
+  debtId String
+  userId Int?
+  cardId Int?
+
+  amount        Decimal  @db.Decimal(10, 2)
+  date          DateTime
+  notes         String?
+  paymentMethod String
+  status        String?
+
+  credit_card credit_cards? @relation("CreditCardToPayments", fields: [cardId], references: [CARD_ID], map: "FK_PAYMENTS_CARD")
+  user        users?        @relation("UserToPayments", fields: [userId], references: [USER_ID], map: "FK_PAYMENTS_USER")
+
+  @@index([cardId])
+  @@index([userId])
 }
 
 model plaidtransaction {
@@ -139,40 +147,40 @@ model users {
   EMAIL        String?        @db.VarChar(30)
   credit_cards credit_cards[]
   payment_plan payment_plan[]
-  payments     payments[]
+  payments     payments[]     @relation("UserToPayments") // ✅ added relation name
   security_log security_log[]
   settlements  settlements[]
   user_session user_session[]
 }
 
 model debt_payment {
-  id          String    @id @default(cuid())
-  debtId      String
-  userId      String
-  amount      Decimal   @db.Decimal(10, 2)
-  date        DateTime  @default(now())
-  notes       String?
-  debt        debt      @relation(fields: [debtId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  debtId    String
+  userId    String
+  amount    Decimal  @db.Decimal(10, 2)
+  date      DateTime @default(now())
+  notes     String?
+  debt      debt     @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([debtId])
   @@index([userId])
 }
 
 model debt {
-  id             String    @id @default(cuid())
+  id             String         @id @default(cuid())
   userId         String
   name           String
-  balance        Decimal   @db.Decimal(10, 2)
-  currentBalance Decimal   @db.Decimal(10, 2)
-  interestRate   Decimal   @db.Decimal(5, 2)
-  minimumPayment Decimal   @db.Decimal(10, 2)
-  dueDate        DateTime  @db.Date
-  extraPayment   Decimal?  @db.Decimal(10, 2)
-  type           String?       
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  balance        Decimal        @db.Decimal(10, 2)
+  currentBalance Decimal        @db.Decimal(10, 2)
+  interestRate   Decimal        @db.Decimal(5, 2)
+  minimumPayment Decimal        @db.Decimal(10, 2)
+  dueDate        DateTime       @db.Date
+  extraPayment   Decimal?       @db.Decimal(10, 2)
+  type           String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   payments       debt_payment[]
 
   @@index([userId])
