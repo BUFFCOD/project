@@ -42,18 +42,14 @@ model payment_plan {
 }
 
 model payments {
-  PAYMENT_ID     Int                     @id @default(autoincrement())
-  USER_ID        Int?
-  CARD_ID        Int?
-  PAID           Decimal                 @db.Decimal(10, 2)
-  PAYMENT_DATE   DateTime?               @default(now()) @db.Timestamp(0)
-  PAYMENT_METHOD payments_PAYMENT_METHOD
-  STATUS         payments_STATUS?        @default(Pending)
-  users          users?                  @relation(fields: [USER_ID], references: [USER_ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_PAYMENTS")
-  credit_cards   credit_cards?           @relation(fields: [CARD_ID], references: [CARD_ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_PAYMENTS1")
-
-  @@index([USER_ID], map: "FK_PAYMENTS")
-  @@index([CARD_ID], map: "FK_PAYMENTS1")
+  id             String   @id @default(uuid())
+  debtId         String
+  userId         String?
+  amount         Decimal
+  date           DateTime
+  notes          String?
+  paymentMethod  String
+  status         String?
 }
 
 model plaidtransaction {

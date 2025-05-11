@@ -1,3 +1,4 @@
+// components/debt-input-dashboard.tsx
 "use client";
 
 import { useState } from "react";
@@ -39,14 +40,15 @@ export default function DebtInputDashboard() {
 
     try {
       await addDebt({
+        type: formData.type, // ← Added here
         name: formData.name || formData.type,
         balance: parseFloat(formData.balance),
         interestRate: parseFloat(formData.interestRate),
         minimumPayment: parseFloat(formData.minimumPayment),
-        dueDate: new Date(formData.dueDate),
+        dueDate: formData.dueDate, // string "YYYY-MM-DD"
         extraPayment: formData.extraPayment
           ? parseFloat(formData.extraPayment)
-          : null,
+          : 0, // always a number
       });
 
       setFormData({
@@ -59,7 +61,6 @@ export default function DebtInputDashboard() {
         extraPayment: "",
       });
     } catch (err: unknown) {
-      // narrow unknown → Error
       const errorObj =
         err instanceof Error
           ? err
@@ -80,26 +81,28 @@ export default function DebtInputDashboard() {
         <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>
       )}
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-2">
+        {/* Debt Type */}
+        <div>
           <label className="block text-sm font-medium text-gray-700">
             Debt Type
           </label>
           <select
             value={formData.type}
             onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-            className="block w-full h-10 px-3 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            className="w-full h-10 px-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500"
             required
           >
             <option value="">Select a debt type</option>
-            {DEBT_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
+            {DEBT_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
               </option>
             ))}
           </select>
         </div>
 
-        <div className="space-y-2">
+        {/* Custom Name */}
+        <div>
           <label className="block text-sm font-medium text-gray-700">
             Custom Name (Optional)
           </label>
@@ -107,172 +110,122 @@ export default function DebtInputDashboard() {
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className="block w-full h-10 px-3 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-            placeholder="e.g., Chase Sapphire, Wells Fargo Student Loan"
+            className="w-full h-10 px-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500"
+            placeholder="e.g., Chase Sapphire"
           />
         </div>
 
-        <div className="space-y-2">
-          <div>
-            <label
-              htmlFor="balance"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Balance
-            </label>
-            <div className="relative rounded-md shadow-sm">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="text-gray-500 sm:text-sm">$</span>
-              </div>
-              <input
-                type="number"
-                id="balance"
-                name="balance"
-                value={formData.balance}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  // Only allow numbers and one decimal point
-                  if (/^\d*\.?\d*$/.test(value)) {
-                    setFormData({ ...formData, balance: value });
-                  }
-                }}
-                onBlur={(e) => {
-                  // Format to 2 decimal places when focus is lost
-                  const value = parseFloat(e.target.value);
-                  if (!isNaN(value)) {
-                    setFormData({ ...formData, balance: value.toFixed(2) });
-                  }
-                }}
-                className="block w-full h-10 pl-7 pr-3 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                placeholder="0.00"
-                min="0"
-                step="0.01"
-                required
-              />
-            </div>
+        {/* Balance */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Balance
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-2 text-gray-500">$</span>
+            <input
+              type="number"
+              value={formData.balance}
+              onChange={(e) => {
+                if (/^\d*\.?\d*$/.test(e.target.value)) {
+                  setFormData({ ...formData, balance: e.target.value });
+                }
+              }}
+              onBlur={(e) => {
+                const v = parseFloat(e.target.value);
+                if (!isNaN(v)) {
+                  setFormData({
+                    ...formData,
+                    balance: v.toFixed(2),
+                  });
+                }
+              }}
+              className="w-full pl-7 h-10 pr-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500"
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              required
+            />
           </div>
         </div>
 
-        <div className="space-y-2">
+        {/* Interest Rate */}
+        <div>
           <label className="block text-sm font-medium text-gray-700">
             Interest Rate (APR)
           </label>
-          <div className="relative rounded-md shadow-sm">
+          <div className="relative">
             <input
               type="number"
               value={formData.interestRate}
               onChange={(e) =>
                 setFormData({ ...formData, interestRate: e.target.value })
               }
-              className="block w-full h-10 px-3 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              required
+              className="w-full h-10 px-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500"
+              placeholder="0.00"
               min="0"
               step="0.01"
-              placeholder="0.00"
+              required
             />
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <span className="text-gray-500 sm:text-sm">%</span>
-            </div>
+            <span className="absolute right-3 top-2 text-gray-500">%</span>
           </div>
         </div>
 
-        <div className="space-y-2">
+        {/* Minimum Payment */}
+        <div>
           <label className="block text-sm font-medium text-gray-700">
             Minimum Payment
           </label>
-          <div className="relative rounded-md shadow-sm">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className="text-gray-500 sm:text-sm">$</span>
-            </div>
+          <div className="relative">
+            <span className="absolute left-3 top-2 text-gray-500">$</span>
             <input
               type="number"
               value={formData.minimumPayment}
               onChange={(e) =>
                 setFormData({ ...formData, minimumPayment: e.target.value })
               }
-              className="block w-full h-10 pl-7 pr-3 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              required
+              className="w-full pl-7 h-10 pr-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500"
+              placeholder="0.00"
               min="0"
               step="0.01"
-              placeholder="0.00"
+              required
             />
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div>
-            <label
-              htmlFor="dueDate"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Due Date
-            </label>
-            <div className="relative rounded-md shadow-sm">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg
-                  className="h-5 w-5 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-              </div>
-              <input
-                type="date"
-                id="dueDate"
-                name="dueDate"
-                value={formData.dueDate}
-                onChange={(e) =>
-                  setFormData({ ...formData, dueDate: e.target.value })
-                }
-                className="block w-full h-10 pl-10 pr-3 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                min={new Date().toISOString().split("T")[0]}
-                required
-              />
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              Select the date your payment is due each month
-            </p>
-            {formData.dueDate && (
-              <p className="mt-1 text-xs text-indigo-600">
-                Next payment due:{" "}
-                {new Date(formData.dueDate + "T00:00:00").toLocaleDateString(
-                  "en-US",
-                  {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                  }
-                )}
-              </p>
-            )}
-          </div>
+        {/* Due Date */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Due Date
+          </label>
+          <input
+            type="date"
+            value={formData.dueDate}
+            onChange={(e) =>
+              setFormData({ ...formData, dueDate: e.target.value })
+            }
+            className="w-full h-10 px-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500"
+            min={new Date().toISOString().split("T")[0]}
+            required
+          />
         </div>
 
-        <div className="space-y-2">
+        {/* Extra Payment */}
+        <div>
           <label className="block text-sm font-medium text-gray-700">
             Extra Monthly Payment (Optional)
           </label>
-          <div className="relative rounded-md shadow-sm">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className="text-gray-500 sm:text-sm">$</span>
-            </div>
+          <div className="relative">
+            <span className="absolute left-3 top-2 text-gray-500">$</span>
             <input
               type="number"
               value={formData.extraPayment}
               onChange={(e) =>
                 setFormData({ ...formData, extraPayment: e.target.value })
               }
-              className="block w-full h-10 pl-7 pr-3 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="w-full pl-7 h-10 pr-3 rounded-md border-gray-300 shadow-sm focus:ring-indigo-500"
+              placeholder="0.00"
               min="0"
               step="0.01"
-              placeholder="0.00"
             />
           </div>
         </div>
@@ -280,7 +233,7 @@ export default function DebtInputDashboard() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full h-10 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+          className="w-full h-10 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
         >
           {isLoading ? "Adding..." : "Add Debt"}
         </button>
