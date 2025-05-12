@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const API_KEY = process.env.GEMINI_API_KEY;
-  const MODEL_NAME = "gemini-2.0-flash-exp";
+  const MODEL_NAME = "gemini-pro"; // Changed to a stable model
   if (!API_KEY)
     return NextResponse.json(
       { error: "Missing Gemini API key" },
@@ -27,11 +27,14 @@ export async function POST(request: Request) {
       orderBy: { date: "desc" },
       take: 5,
     });
+
     const accounts: Array<{
       name: string;
       balances?: { available?: number; current?: number };
     }> = [];
+
     const item = await prisma.userplaiditem.findUnique({ where: { userId } });
+
     if (item) {
       const token = decrypt(item.encryptedAccessToken);
       const resp = await plaidClient.accountsGet({ access_token: token });
@@ -49,6 +52,7 @@ export async function POST(request: Request) {
 
     // 2) Build context string for LLM
     const contextLines: string[] = [];
+
     if (accounts.length) {
       contextLines.push("Accounts:");
       accounts.forEach((a) =>
@@ -61,14 +65,16 @@ export async function POST(request: Request) {
         )
       );
     }
+
     if (transactions.length) {
       contextLines.push("Recent Transactions:");
-      transactions.forEach((t: { name: string; amount: number; date: Date }) =>
+      transactions.forEach((t) =>
         contextLines.push(
           `- ${t.name}: $${t.amount} on ${t.date.toISOString().split("T")[0]}`
         )
       );
     }
+
     const financialContext = contextLines.join("\n");
 
     // 3) Read user message
@@ -77,21 +83,28 @@ export async function POST(request: Request) {
       ? `${message}\n\n${financialContext}`
       : message;
 
-    // 4) Call the Gemini generateContent API
-    const systemInstruction =
-      "You are a financial advisor. Use the provided Accounts and Recent Transactions to answer the user's question. Provide clear, actionable advice and include appropriate disclaimers.";
-
+    // 4) Call Gemini API
     const genAI = new GoogleGenerativeAI(API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: MODEL_NAME,
-      systemInstruction: {
-        role: "system",
-        parts: [{ text: systemInstruction }],
-      },
-    });
+    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
     const response = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: userPrompt }],
+        },
+      ],
+      systemInstruction: {
+        role: "system",
+        parts: [
+          {
+            text: "You are a financial advisor. Use the provided Accounts and Recent Transactions to answer the user's question. Provide clear, actionable advice and include appropriate disclaimers.",
+          },
+        ],
+      },
+      generationConfig: {
+        temperature: 0.7,
+      },
     });
 
     const result = await response.response;
@@ -99,7 +112,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ text });
   } catch (e: any) {
-    console.error("Chat API Error:", e);
-    return NextResponse.json({ error: "AI error" }, { status: 500 });
+    console.error("Chat API Error:", e?.response?.data || e.message || e);
+    return NextResponse.json(
+      {
+        error: "AI error",
+        details: e?.response?.data?.error?.message || e.message || "Unknown",
+      },
+      { status: 500 }
+    );
   }
 }
