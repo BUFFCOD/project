@@ -2,6 +2,9 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 
+# Add ENCRYPTION_SECRET to be available at build time
+ENV ENCRYPTION_SECRET=kQIBcLw4PqLxiZCN3f5GkhuDeNOBTs4bnGftZtxqbcM=
+
 # Install dependencies
 COPY package*.json pnpm-lock.yaml* ./
 RUN npm ci
@@ -22,6 +25,10 @@ RUN npm run build
 FROM node:18-alpine AS runner
 WORKDIR /app
 
+# Add ENCRYPTION_SECRET again for runtime
+ENV ENCRYPTION_SECRET=kQIBcLw4PqLxiZCN3f5GkhuDeNOBTs4bnGftZtxqbcM=
+ENV PORT=8080
+
 # Install only production dependencies
 COPY package*.json ./
 RUN npm ci --omit=dev
@@ -32,13 +39,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package.json ./package.json
-
-# Add Prisma client output just in case it's used at runtime
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Set env, expose port
-ENV PORT=8080
+# Expose the app port and run it
 EXPOSE 8080
-
-# Start the Next.js app
 CMD ["npm", "run", "start"]
