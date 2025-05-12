@@ -3,9 +3,9 @@ import { NextResponse } from "next/server";
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
 import type { CountryCode, Products } from "plaid";
 
+// Dynamically use .env.local values
 const config = new Configuration({
-  basePath:
-    PlaidEnvironments[process.env.PLAID_ENV as keyof typeof PlaidEnvironments],
+  basePath: PlaidEnvironments[process.env.PLAID_ENV || "production"],
   baseOptions: {
     headers: {
       "PLAID-CLIENT-ID": process.env.PLAID_CLIENT_ID || "",
