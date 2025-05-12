@@ -3,13 +3,25 @@ import { NextResponse } from "next/server";
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
 import type { CountryCode, Products } from "plaid";
 
-// Dynamically use .env.local values
+// Check for required environment variables
+const requiredEnv = ["PLAID_ENV", "PLAID_CLIENT_ID", "PLAID_SECRET"];
+requiredEnv.forEach((key) => {
+  if (!process.env[key]) {
+    console.warn(`⚠️ Missing environment variable: ${key}`);
+  }
+});
+
+// Setup Plaid configuration
+const plaidEnv = process.env.PLAID_ENV || "production";
+const clientId = process.env.PLAID_CLIENT_ID || "";
+const secret = process.env.PLAID_SECRET || "";
+
 const config = new Configuration({
-  basePath: PlaidEnvironments[process.env.PLAID_ENV || "production"],
+  basePath: PlaidEnvironments[plaidEnv as keyof typeof PlaidEnvironments],
   baseOptions: {
     headers: {
-      "PLAID-CLIENT-ID": process.env.PLAID_CLIENT_ID || "",
-      "PLAID-SECRET": process.env.PLAID_SECRET || "",
+      "PLAID-CLIENT-ID": clientId,
+      "PLAID-SECRET": secret,
     },
   },
 });
@@ -26,16 +38,21 @@ export async function GET() {
     const response = await plaidClient.linkTokenCreate({
       user: { client_user_id: userId },
       client_name: "BudgetWize",
-      products: ["auth", "transactions", "liabilities"] as Products[],
+      products: ["transactions", "liabilities"] as Products[],
       country_codes: ["US"] as CountryCode[],
       language: "en",
     });
 
     return NextResponse.json({ link_token: response.data.link_token });
-  } catch (error) {
-    console.error("Link token creation error:", error);
+  } catch (error: any) {
+    console.error("🔴 Plaid linkTokenCreate failed:", {
+      message: error?.response?.data || error.message || error,
+    });
+
     return NextResponse.json(
-      { error: "Unable to create link token" },
+      {
+        error: "Unable to create link token. See logs for details.",
+      },
       { status: 500 }
     );
   }
