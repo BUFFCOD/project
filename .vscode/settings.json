@@ -13,6 +13,19 @@
       "database": "capstone",
       "name": "capstone",
       "password": "root"
+    },
+    {
+      "mysqlOptions": {
+        "authProtocol": "default",
+        "enableSsl": "Disabled"
+      },
+      "previewLimit": 50,
+      "server": "34.170.194.55",
+      "port": 3306,
+      "driver": "MySQL",
+      "name": "sss",
+      "database": "capstone",
+      "username": "wood"
     }
   ]
 }

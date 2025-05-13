@@ -1,4 +1,4 @@
-export const runtime = "nodejs";
+// export const runtime = "nodejs";
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const API_KEY = process.env.GEMINI_API_KEY;
-  const MODEL_NAME = "gemini-pro"; // Changed to a stable model
+  const MODEL_NAME = "gemini-1.5-pro";
   if (!API_KEY)
     return NextResponse.json(
       { error: "Missing Gemini API key" },
@@ -70,7 +70,9 @@ export async function POST(request: Request) {
       contextLines.push("Recent Transactions:");
       transactions.forEach((t) =>
         contextLines.push(
-          `- ${t.name}: $${t.amount} on ${t.date.toISOString().split("T")[0]}`
+          `- ${t.name}: $${t.amount} on ${t.date
+            .toISOString()
+            .split("T")[0]}`
         )
       );
     }
@@ -79,9 +81,12 @@ export async function POST(request: Request) {
 
     // 3) Read user message
     const { message } = await request.json();
+
+    const systemInstruction = `You are a financial advisor. Use the provided Accounts and Recent Transactions to answer the user's question. Provide clear, actionable advice and include appropriate disclaimers.`;
+
     const userPrompt = financialContext
-      ? `${message}\n\n${financialContext}`
-      : message;
+      ? `${systemInstruction}\n\n${message}\n\n${financialContext}`
+      : `${systemInstruction}\n\n${message}`;
 
     // 4) Call Gemini API
     const genAI = new GoogleGenerativeAI(API_KEY);
@@ -94,14 +99,6 @@ export async function POST(request: Request) {
           parts: [{ text: userPrompt }],
         },
       ],
-      systemInstruction: {
-        role: "system",
-        parts: [
-          {
-            text: "You are a financial advisor. Use the provided Accounts and Recent Transactions to answer the user's question. Provide clear, actionable advice and include appropriate disclaimers.",
-          },
-        ],
-      },
       generationConfig: {
         temperature: 0.7,
       },
