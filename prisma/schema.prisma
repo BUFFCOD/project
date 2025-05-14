@@ -19,7 +19,7 @@ model credit_cards {
   STATUS        credit_cards_STATUS?   @default(Active)
   users         users                  @relation(fields: [USER_ID], references: [USER_ID], onDelete: NoAction, onUpdate: NoAction, map: "FK_CREDIT_CARDS")
   payment_plan  payment_plan[]
-  payments      payments[]             @relation("CreditCardToPayments") // ✅ added relation name
+  payments      payments[]             @relation("CreditCardToPayments")
   settlements   settlements[]
   transactions  transactions[]
 
@@ -42,19 +42,17 @@ model payment_plan {
 }
 
 model payments {
-  id     String @id @default(uuid())
-  debtId String
-  userId Int?
-  cardId Int?
-
-  amount        Decimal  @db.Decimal(10, 2)
+  id            String        @id @default(uuid())
+  debtId        String
+  userId        Int?
+  cardId        Int?
+  amount        Decimal       @db.Decimal(10, 2)
   date          DateTime
   notes         String?
   paymentMethod String
   status        String?
-
-  credit_card credit_cards? @relation("CreditCardToPayments", fields: [cardId], references: [CARD_ID], map: "FK_PAYMENTS_CARD")
-  user        users?        @relation("UserToPayments", fields: [userId], references: [USER_ID], map: "FK_PAYMENTS_USER")
+  credit_card   credit_cards? @relation("CreditCardToPayments", fields: [cardId], references: [CARD_ID], map: "FK_PAYMENTS_CARD")
+  user          users?        @relation("UserToPayments", fields: [userId], references: [USER_ID], map: "FK_PAYMENTS_USER")
 
   @@index([cardId])
   @@index([userId])
@@ -62,14 +60,14 @@ model payments {
 
 model plaidtransaction {
   id                String    @id
+  userId            String
   transactionId     String?   @unique(map: "transactionId")
+  account_id        String
   name              String
   amount            Float     @db.Float
-  date              DateTime  @db.DateTime(0)
-  account_id        String
-  userId            String
-  category          String?
   iso_currency_code String?   @db.VarChar(10)
+  date              DateTime  @db.DateTime(0)
+  category          String?
   createdAt         DateTime? @default(now()) @db.DateTime(0)
 
   @@index([userId], map: "PlaidTransaction_userId_idx")
@@ -147,7 +145,7 @@ model users {
   EMAIL        String?        @db.VarChar(30)
   credit_cards credit_cards[]
   payment_plan payment_plan[]
-  payments     payments[]     @relation("UserToPayments") // ✅ added relation name
+  payments     payments[]     @relation("UserToPayments")
   security_log security_log[]
   settlements  settlements[]
   user_session user_session[]
@@ -160,9 +158,9 @@ model debt_payment {
   amount    Decimal  @db.Decimal(10, 2)
   date      DateTime @default(now())
   notes     String?
-  debt      debt     @relation(fields: [debtId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  debt      debt     @relation(fields: [debtId], references: [id], onDelete: Cascade)
 
   @@index([debtId])
   @@index([userId])
@@ -207,24 +205,10 @@ enum payment_plan_CHOSEN_PLAN {
   Highest
 }
 
-enum payments_PAYMENT_METHOD {
-  Transfer
-  Check
-  Credit
-  Cash
-  ACH
-}
-
 enum settlements_STATUS {
   Pending
   Completed
   Rejected
-}
-
-enum payments_STATUS {
-  Pending
-  Completed
-  Failed
 }
 
 enum credit_cards_STATUS {
