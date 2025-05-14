@@ -68,6 +68,8 @@ model plaidtransaction {
   iso_currency_code String?   @db.VarChar(10)
   date              DateTime  @db.DateTime(0)
   category          String?
+  transaction_type  String?
+  pfc_primary       String?
   createdAt         DateTime? @default(now()) @db.DateTime(0)
 
   @@index([userId], map: "PlaidTransaction_userId_idx")
@@ -82,6 +84,8 @@ model security_log {
 
   @@index([USER_ID], map: "FK_SECURITY_LOG")
 }
+
+
 
 model settlements {
   SET_ID          Int                 @id @default(autoincrement())

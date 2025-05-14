@@ -1,3 +1,4 @@
+// app/(dashboard)/transactions/page.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -18,6 +19,7 @@ import {
 import {
   PieChart,
   Pie,
+  Sector,
   Cell,
   Tooltip,
   Legend,
@@ -28,225 +30,229 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-// Define transaction type
 interface Transaction {
   id: string;
   name: string;
   amount: number;
   date: string;
-  category: string;
+  category: string | null;
   card?: string;
+  transaction_type: string;
+  personal_finance_category?: {
+    primary: string;
+    detailed: string;
+    confidence_level: string;
+  };
 }
 
-// Category color mapping (inspired by Bank of America)
-const CATEGORY_COLORS: Record<string, string> = {
-  "Education": "#6a0dad",          // Purple
-  "Dining": "#c0392b",             // Red
-  "Groceries": "#27ae60",          // Green
-  "Transportation": "#2980b9",     // Blue
-  "Shopping & Entertainment": "#f39c12", // Orange
-  "Health": "#1abc9c",             // Teal
-  "Cash, Checks & Misc": "#d35400", // Dark Orange
-  "Personal & Family Care": "#145a32", // Dark Green
-  "Home & Utilities": "#2e86c1",   // Medium Blue
-  "Finance": "#8e44ad",            // Violet
-  "Restaurants & Dining": "#e74c3c", // Bright Red
-  "Other": "#7f8c8d"               // Gray fallback
+// Helper to detect payments (full & abbreviated)
+const isPaymentName = (name: string) => {
+  const u = name.toUpperCase();
+  return u.includes("PAYMENT") || u.includes("PYMNT");
 };
 
-const TransactionsPage: React.FC = () => {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [filterCard, setFilterCard] = useState<string>("All");
-  const [filterDate, setFilterDate] = useState<string>("All");
+export default function TransactionsPage() {
+  const [txns, setTxns] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterCard, setFilterCard] = useState("All");
+  const [filterDate, setFilterDate] = useState("All");
+
+  // Hover state for pie
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
+  const onPieEnter = (_: any, index: number) => setActiveIndex(index);
 
   useEffect(() => {
-    fetch("/api/transactions")
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data.transactions)) {
-          setTransactions(data.transactions);
-        } else {
-          console.warn("API returned invalid transactions:", data);
-          setTransactions([]);
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to fetch transactions:", err);
-        setTransactions([]);
-      });
+    (async () => {
+      try {
+        await fetch("/api/plaid/transactions");
+        const res = await fetch("/api/transactions");
+        const { transactions } = await res.json();
+        setTxns(transactions);
+      } catch {
+        setTxns([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
-  // Defensive filter logic
-  const filteredTransactions = Array.isArray(transactions)
-    ? transactions.filter((tx) => {
-        const byCard = filterCard === "All" || tx.card === filterCard;
+  if (loading) return <p className="p-4 text-center">Loading…</p>;
 
-        const byDate = (() => {
-          if (filterDate === "All") return true;
-          const now = new Date();
-          const txDate = new Date(tx.date);
-          const days = filterDate === "7" ? 7 : filterDate === "30" ? 30 : 90;
-          const cutoff = new Date(now.setDate(now.getDate() - days));
-          return txDate >= cutoff;
-        })();
+  const isIncome = (t: Transaction) =>
+    t.transaction_type !== "place" ||
+    t.personal_finance_category?.primary === "INCOME";
 
-        return byCard && byDate;
-      })
-    : [];
-
-  const categoryTotals = filteredTransactions.reduce<Record<string, number>>(
-    (acc, tx) => {
-      const category = tx.category || "Other";
-      acc[category] = (acc[category] || 0) + tx.amount;
-      return acc;
-    },
-    {}
-  );
-
-  const categoryData = Object.entries(categoryTotals).map(
-    ([category, amount]) => ({
-      name: category,
-      value: amount,
-      color: CATEGORY_COLORS[category] || CATEGORY_COLORS["Other"],
-    })
-  );
-
-  const allCards = Array.from(
-    new Set(transactions.map((tx) => tx.card).filter(Boolean))
-  );
-
-  // Generate dynamic monthly income/spending from real transactions
-  function getMonthLabel(date: string): string {
-    return new Date(date).toLocaleString("default", { month: "short" });
-  }
-
-  const monthlyMap: Record<string, { income: number; spending: number }> = {};
-
-  transactions.forEach((tx) => {
-    const month = getMonthLabel(tx.date);
-    if (!monthlyMap[month]) {
-      monthlyMap[month] = { income: 0, spending: 0 };
-    }
-    if (tx.amount >= 0) {
-      monthlyMap[month].income += tx.amount;
-    } else {
-      monthlyMap[month].spending += Math.abs(tx.amount);
-    }
+  const filtered = txns.filter((t) => {
+    const okCard = filterCard === "All" || t.card === filterCard;
+    const okDate =
+      filterDate === "All"
+        ? true
+        : new Date(t.date) >= new Date(Date.now() - Number(filterDate) * 864e5);
+    return okCard && okDate;
   });
 
-  const cashFlowData = Object.entries(monthlyMap).map(([month, { income, spending }]) => ({
-    month,
-    income,
-    spending,
+  // Totals for donut
+  const totalPayment = filtered
+    .filter((t) => isPaymentName(t.name))
+    .reduce((sum, t) => sum + t.amount, 0);
+  const totalExpense = filtered
+    .filter((t) => !isPaymentName(t.name) && !isIncome(t))
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const pieData = [
+    { name: "Expense", value: totalExpense },
+    { name: "Payment", value: totalPayment },
+  ];
+  const PIE_COLORS = ["#7f8c8d", "#34495e"];
+
+  // Category breakdown for bar chart
+  const categoryTotals = filtered.reduce<Record<string, number>>((acc, t) => {
+    if (isPaymentName(t.name)) {
+      acc.Payment = (acc.Payment || 0) + t.amount;
+    } else if (!isIncome(t)) {
+      const cat = t.category || "Other";
+      acc[cat] = (acc[cat] || 0) + t.amount;
+    }
+    return acc;
+  }, {});
+  const categoryData = Object.entries(categoryTotals).map(([name, value]) => ({
+    name,
+    value,
+    color: PIE_COLORS[name === "Payment" ? 1 : 0],
   }));
-  
+
+  // Unique cards
+  const allCards = Array.from(
+    new Set(txns.map((t) => t.card).filter(Boolean))
+  ) as string[];
+
+  // Cash flow
+  const monthly: Record<string, { income: number; spending: number }> = {};
+  txns.forEach((t) => {
+    const m = new Date(t.date).toLocaleString("default", { month: "short" });
+    if (!monthly[m]) monthly[m] = { income: 0, spending: 0 };
+    if (isIncome(t)) monthly[m].income += t.amount;
+    else monthly[m].spending += t.amount;
+  });
+  const cashFlowData = Object.entries(monthly)
+    .map(([month, v]) => ({ month, ...v }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+
+  // Dynamic month/year label
+  let labelMonthYear = new Date().toLocaleString("default", {
+    month: "long",
+    year: "numeric",
+  });
+  if (filtered.length > 0) {
+    const latest = new Date(filtered[0].date);
+    labelMonthYear = latest.toLocaleString("default", {
+      month: "long",
+      year: "numeric",
+    });
+  }
+
   return (
     <div className="space-y-6 p-4">
-      {/* Filter Controls */}
-      <div className="flex flex-wrap items-center gap-4">
-        <div>
-          <label className="text-sm font-medium">Filter by Card:</label>
-          <select
-            className="ml-2 border rounded px-2 py-1"
-            value={filterCard}
-            onChange={(e) => setFilterCard(e.target.value)}
-          >
-            <option value="All">All</option>
-            {allCards.map((card) => (
-              <option key={card} value={card}>
-                {card}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-sm font-medium">Filter by Date:</label>
-          <select
-            className="ml-2 border rounded px-2 py-1"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-          >
-            <option value="All">All Time</option>
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-          </select>
-        </div>
+      {/* Filters */}
+      <div className="flex gap-4">
+        <select
+          className="border rounded px-2 py-1"
+          value={filterCard}
+          onChange={(e) => setFilterCard(e.target.value)}
+        >
+          <option>All</option>
+          {allCards.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+        <select
+          className="border rounded px-2 py-1"
+          value={filterDate}
+          onChange={(e) => setFilterDate(e.target.value)}
+        >
+          <option value="All">All Time</option>
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
       </div>
 
-      {/* Donut Chart */}
+      {/* Two-slice Donut with smooth hover */}
       <Card>
         <CardHeader>
-          <CardTitle>Spending by Category</CardTitle>
+          <CardTitle>Spending vs. Payments</CardTitle>
         </CardHeader>
-        <CardContent className="flex justify-center">
-          <div className="relative w-[300px] h-[300px]">
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-              <div className="text-sm text-gray-500">Total Spending</div>
-              <div className="text-xl font-bold">
-                ${categoryData.reduce((sum, item) => sum + item.value, 0).toFixed(2)}
+        <CardContent>
+          <div className="flex items-center justify-center space-x-8">
+            {/* Center Text */}
+            <div className="text-center">
+              <div className="text-sm text-gray-500">Total Outflow</div>
+              <div className="text-3xl font-bold">
+                ${totalExpense.toFixed(2)}
               </div>
-              <div className="text-xs text-gray-400">
-                in {new Date().toLocaleString("default", { month: "long", year: "numeric" })}
-              </div>
+              <div className="text-xs text-gray-400">in {labelMonthYear}</div>
+            </div>
+
+            {/* Pie Chart */}
+            <div className="w-[300px] h-[300px] relative">
+              <PieChart width={300} height={300}>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={80}
+                  outerRadius={120}
+                  dataKey="value"
+                  activeIndex={activeIndex}
+                  activeShape={(props: any) => (
+                    <Sector
+                      cx={props.cx}
+                      cy={props.cy}
+                      innerRadius={props.innerRadius}
+                      outerRadius={props.outerRadius + 10}
+                      startAngle={props.startAngle}
+                      endAngle={props.endAngle}
+                      fill={PIE_COLORS[props.index]!}
+                    />
+                  )}
+                  onMouseEnter={onPieEnter}
+                  onMouseLeave={() => setActiveIndex(-1)}
+                  labelLine={false}
+                  label={({ percent }) => `${(percent! * 100).toFixed(0)}%`}
+                >
+                  {pieData.map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i]} />
+                  ))}
+                </Pie>
+              </PieChart>
+              <Legend
+                verticalAlign="bottom"
+                align="center"
+                wrapperStyle={{ paddingTop: 16 }}
+              />
             </div>
           </div>
-
-          <PieChart width={300} height={300}>
-            <Pie
-              data={categoryData}
-              cx="50%"
-              cy="50%"
-              innerRadius={80}
-              outerRadius={120}
-              dataKey="value"
-              label
-            >
-              {categoryData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip />
-            <Legend />
-          </PieChart>
         </CardContent>
       </Card>
 
-      {/* Horizontal Bar Chart */}
+      {/* Breakdown by Amount */}
       <Card>
         <CardHeader>
           <CardTitle>Breakdown by Amount</CardTitle>
         </CardHeader>
-        <CardContent className="h-72">
+        <CardContent className="h-60">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart layout="vertical" data={categoryData}>
+            <BarChart data={categoryData} layout="vertical">
               <XAxis type="number" />
               <YAxis type="category" dataKey="name" width={100} />
               <Tooltip />
-              <Bar dataKey="value" fill="#8884d8">
-                {categoryData.map((entry, index) => (
-                  <Cell key={`bar-${index}`} fill={entry.color} />
+              <Bar dataKey="value">
+                {categoryData.map((d, i) => (
+                  <Cell key={i} fill={d.color} />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-          {/* Shortfall/Surplus Labels */}
-          <div className="mt-4 flex justify-around text-sm font-medium text-center">
-            {cashFlowData.map((entry) => {
-              const diff = entry.income - entry.spending;
-              const isSurplus = diff >= 0;
-              const label = isSurplus
-                ? `Surplus $${diff.toFixed(2)}`
-                : `Shortfall $${Math.abs(diff).toFixed(2)}`;
-              return (
-                <div key={entry.month} className={`w-20 ${isSurplus ? "text-green-600" : "text-red-600"}`}>
-                  <div className="text-xs text-gray-500">{entry.month}</div>
-                  {label}
-                </div>
-              );
-            })}
-          </div>
-
         </CardContent>
       </Card>
 
@@ -267,15 +273,15 @@ const TransactionsPage: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTransactions.map((tx) => (
-                <TableRow key={tx.id}>
+              {filtered.map((t) => (
+                <TableRow key={t.id}>
+                  <TableCell>{new Date(t.date).toLocaleDateString()}</TableCell>
+                  <TableCell>{t.name}</TableCell>
+                  <TableCell>${t.amount.toFixed(2)}</TableCell>
                   <TableCell>
-                    {new Date(tx.date).toLocaleDateString()}
+                    {isPaymentName(t.name) ? "Payment" : t.category || "Other"}
                   </TableCell>
-                  <TableCell>{tx.name}</TableCell>
-                  <TableCell>${tx.amount.toFixed(2)}</TableCell>
-                  <TableCell>{tx.category}</TableCell>
-                  <TableCell>{tx.card || "—"}</TableCell>
+                  <TableCell>{t.card || "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -283,27 +289,27 @@ const TransactionsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Cash Flow Bar Chart */}
+      {/* Cash Flow Overview */}
       <Card>
         <CardHeader>
           <CardTitle>Cash Flow Overview</CardTitle>
         </CardHeader>
-        <CardContent className="h-80">
+        <CardContent className="h-60">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={cashFlowData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+            <BarChart
+              data={cashFlowData}
+              margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+            >
               <XAxis dataKey="month" />
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="income" fill="#20B2AA" name="Income" />
-              <Bar dataKey="spending" fill="#1E90FF" name="Spending" />
+              <Bar dataKey="income" name="Income" fill="#20B2AA" />
+              <Bar dataKey="spending" name="Spending" fill="#1E90FF" />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
-
     </div>
   );
-};
-
-export default TransactionsPage;
+}
