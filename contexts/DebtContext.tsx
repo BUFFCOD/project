@@ -71,21 +71,34 @@ const normalizeDebt = (
 ): Debt => ({
   ...raw,
   type: raw.type ?? "",
-  interestRate: raw.interestRate.toNumber(),
-  balance: raw.balance.toNumber(),
-  currentBalance: raw.currentBalance.toNumber(),
-  minimumPayment: raw.minimumPayment.toNumber(),
-  extraPayment: raw.extraPayment?.toNumber() ?? 0,
+  interestRate: typeof raw.interestRate === 'object' && 'toNumber' in raw.interestRate 
+    ? raw.interestRate.toNumber() 
+    : Number(raw.interestRate),
+  balance: typeof raw.balance === 'object' && 'toNumber' in raw.balance 
+    ? raw.balance.toNumber() 
+    : Number(raw.balance),
+  currentBalance: typeof raw.currentBalance === 'object' && 'toNumber' in raw.currentBalance 
+    ? raw.currentBalance.toNumber() 
+    : Number(raw.currentBalance),
+  minimumPayment: typeof raw.minimumPayment === 'object' && 'toNumber' in raw.minimumPayment 
+    ? raw.minimumPayment.toNumber() 
+    : Number(raw.minimumPayment),
+  extraPayment: raw.extraPayment 
+    ? (typeof raw.extraPayment === 'object' && 'toNumber' in raw.extraPayment 
+      ? raw.extraPayment.toNumber() 
+      : Number(raw.extraPayment))
+    : 0,
   dueDate: raw.dueDate.toISOString().split("T")[0],
   payments: raw.payments?.map((p) => ({
     id: p.id.toString(),
     debtId: p.debtId.toString(),
     userId: p.userId?.toString(),
-    amount: p.amount.toNumber(),
+    amount: typeof p.amount === 'object' && 'toNumber' in p.amount 
+      ? p.amount.toNumber() 
+      : Number(p.amount),
     date: p.date?.toISOString().split("T")[0] ?? "",
     notes: p.notes ?? "",
   }))
-  ,
 });
 
 export function DebtProvider({ children }: { children: ReactNode }) {
@@ -114,9 +127,17 @@ export function DebtProvider({ children }: { children: ReactNode }) {
         const errData = await res.json();
         throw new Error(errData.error || "Failed to fetch debts");
       }
-      const data: (PrismaDebt & { payments?: PrismaPayment[] })[] =
-        await res.json();
-      setDebts(data.map(normalizeDebt));
+      const data = await res.json();
+      // Ensure all numeric values are properly formatted
+      const formattedData = data.map((debt: any) => ({
+        ...debt,
+        interestRate: Number(debt.interestRate),
+        balance: Number(debt.balance),
+        currentBalance: Number(debt.currentBalance),
+        minimumPayment: Number(debt.minimumPayment),
+        extraPayment: debt.extraPayment ? Number(debt.extraPayment) : 0,
+      }));
+      setDebts(formattedData);
     } catch (err) {
       console.error("Error fetching debts:", err);
       setError(err instanceof Error ? err.message : "Failed to load debts.");
@@ -156,15 +177,29 @@ export function DebtProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newDebt),
       });
-      if (!res.ok) throw new Error("Failed to add debt");
-      const added: PrismaDebt & { payments?: PrismaPayment[] } =
-        await res.json();
+      
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to add debt");
+      }
+      
+      const added = await res.json();
+      // Format the response data to ensure all numeric values are numbers
+      const formattedDebt = {
+        ...added,
+        interestRate: Number(added.interestRate),
+        balance: Number(added.balance),
+        currentBalance: Number(added.currentBalance),
+        minimumPayment: Number(added.minimumPayment),
+        extraPayment: added.extraPayment ? Number(added.extraPayment) : 0,
+        payments: added.payments || [],
+      };
+
       setDebts((prev) => {
-        const normalized = normalizeDebt(added);
-        const exists = prev.some((d) => d.id === normalized.id);
+        const exists = prev.some((d) => d.id === formattedDebt.id);
         return exists
-          ? prev.map((d) => (d.id === normalized.id ? normalized : d))
-          : [...prev, normalized];
+          ? prev.map((d) => (d.id === formattedDebt.id ? formattedDebt : d))
+          : [...prev, formattedDebt];
       });
     } catch (err) {
       console.error("Error adding debt:", err);
